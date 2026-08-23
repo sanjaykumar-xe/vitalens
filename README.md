@@ -79,7 +79,32 @@ vitalens/
 - **Python 3.9 – 3.11** (MediaPipe compatibility)
 - Standard USB or built-in webcam
 
-### Setup
+### 🚀 Deploying to Vercel (1-Click Client-Side Web App)
+
+VitaLens is ready for 1-click deployment on **Vercel** with zero server costs and zero configuration:
+
+1. Push this repository to your GitHub account (already synced to `https://github.com/sanjaykumar-xe/vitalens`).
+2. Go to **[vercel.com](https://vercel.com)** and click **"Add New Project"**.
+3. Import the `vitalens` repository.
+4. Leave all build and output settings as default (`Framework Preset: Other`, `Root Directory: ./`).
+5. Click **"Deploy"**.
+6. Your live VitaLens app will be instantly live with an HTTPS link (e.g. `https://vitalens.vercel.app`), processing all camera feeds client-side via WebAssembly!
+
+---
+
+### 💻 Running Locally
+
+#### Method A: Static Web Server (Client-Side Mode)
+```bash
+# Using Python
+python -m http.server 3000
+
+# Or using npx serve
+npx serve .
+```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+#### Method B: Local Python Flask Server
 ```bash
 # Clone the repository
 git clone https://github.com/sanjaykumar-xe/vitalens.git
@@ -89,20 +114,18 @@ cd vitalens
 python -m venv venv
 
 # Activate virtual environment
-# Windows (Command Prompt / PowerShell):
+# Windows:
 venv\Scripts\activate
 # macOS / Linux:
 source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### Run
-```bash
+# Run
 python app.py
 ```
-Open **[http://localhost:5000](http://localhost:5000)** in any modern web browser.
+Open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
 ---
 
@@ -110,10 +133,11 @@ Open **[http://localhost:5000](http://localhost:5000)** in any modern web browse
 
 | Parameter | Location | Default | Description |
 |---|---|---|---|
-| `BUFFER_SECONDS` | `vitalens_core/camera.py` | `30` | Rolling sample buffer length (matches baseline window) |
-| `CALIBRATION_SECONDS` | `vitalens_core/calibration.py` | `30` | Baseline learning window duration |
-| `DROWSY_SECONDS` | `vitalens_core/eye_strain.py` | `2.0` | Sustained eye closure threshold to trigger Drowsy Alert |
-| `LOW_BLINK_RATE_PER_MIN` | `vitalens_core/eye_strain.py` | `8` | Blink rate cutoff for eye strain detection |
-| `REFRACTORY_SECONDS` | `vitalens_core/eye_strain.py` | `0.18` | Minimum cooldown between consecutive blinks |
-| `FOREHEAD_LANDMARKS` | `vitalens_core/camera.py` | — | 468-point landmark indices for forehead rPPG ROI |
+| `BUFFER_SECONDS` | `vitalens_core/camera.py` / `dashboard.js` | `30` | Rolling sample buffer length (matches baseline window) |
+| `CALIBRATION_SECONDS` | `vitalens_core/calibration.py` / `dsp.js` | `30` | Baseline learning window duration |
+| `DROWSY_SECONDS` | `vitalens_core/eye_strain.py` / `eye_tracker.js` | `2.0` | Sustained eye closure threshold to trigger Drowsy Alert |
+| `LOW_BLINK_RATE_PER_MIN` | `vitalens_core/eye_strain.py` / `eye_tracker.js` | `8` | Blink rate cutoff for eye strain detection |
+| `REFRACTORY_SECONDS` | `vitalens_core/eye_strain.py` / `eye_tracker.js` | `0.18` | Minimum cooldown between consecutive blinks |
+| `FOREHEAD_LANDMARKS` | `vitalens_core/camera.py` / `dashboard.js` | — | 468-point landmark indices for forehead rPPG ROI |
+
 
