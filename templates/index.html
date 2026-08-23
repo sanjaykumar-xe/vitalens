@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VitaLens — AI-Powered Contactless Wellness Monitoring</title>
+  <!-- Google Fonts: Plus Jakarta Sans, Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-glow bg-glow-3"></div>
+
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand">
+        <div class="brand-icon-wrap">
+          <svg class="brand-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+          <span class="brand-pulse"></span>
+        </div>
+        <div class="brand-text">
+          <h1>Vita<span class="gradient-text">Lens</span></h1>
+          <span class="version-badge">v2.0 AI</span>
+        </div>
+      </div>
+      <p class="tagline">Contactless rPPG · Personal Baseline HRV · Eye Strain &amp; Drowsiness</p>
+    </div>
+
+    <div class="header-actions">
+      <div class="session-timer-badge">
+        <span class="timer-dot"></span>
+        <span>Session: <strong id="sessionTimer">00:00</strong></span>
+      </div>
+      <button id="soundToggleBtn" class="btn-glass sound-btn" title="Toggle audio alert for drowsiness and eye strain">
+        <span class="sound-icon" id="soundIcon">🔇</span>
+        <span id="soundToggleText">Sound: Off</span>
+      </button>
+      <button id="recalibrateBtn" class="btn-glass recalibrate-btn" title="Restart 30s Personal Baseline Calibration">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        <span>Recalibrate</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Camera Video Feed Panel -->
+    <section class="video-panel glass-card">
+      <div class="panel-header">
+        <div class="feed-status">
+          <span class="live-dot"></span>
+          <span class="feed-title">LIVE OPTICAL rPPG FEED</span>
+        </div>
+        <span id="faceStatus" class="pill pill-muted">
+          <span class="pill-dot"></span>
+          <span id="faceStatusText">Detecting Face...</span>
+        </span>
+      </div>
+
+      <div class="video-wrap">
+        <div class="hud-bracket hud-top-left"></div>
+        <div class="hud-bracket hud-top-right"></div>
+        <div class="hud-bracket hud-bottom-left"></div>
+        <div class="hud-bracket hud-bottom-right"></div>
+        
+        <img id="videoFeed" src="/video_feed" alt="Live camera feed" />
+        
+        <div id="calibrationOverlay" class="calibration-overlay hidden">
+          <div class="ring-wrap">
+            <svg viewBox="0 0 140 140" class="ring">
+              <defs>
+                <linearGradient id="calibGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#10b981" />
+                  <stop offset="50%" stop-color="#06b6d4" />
+                  <stop offset="100%" stop-color="#6366f1" />
+                </linearGradient>
+              </defs>
+              <circle cx="70" cy="70" r="58" class="ring-bg" />
+              <circle cx="70" cy="70" r="58" class="ring-fg" id="ringFg" />
+            </svg>
+            <div class="ring-label">
+              <span id="calibSeconds">30</span><span class="unit-s">s</span>
+            </div>
+          </div>
+          <div class="calib-text-box">
+            <h3>Establishing Personal Baseline</h3>
+            <p>Sit still and maintain natural eye contact with the camera…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="video-footer">
+        <span class="hud-info">ROI: Forehead Polygon (MediaPipe 468)</span>
+        <span class="hud-info">Res: 640x480 @ 30 FPS</span>
+      </div>
+    </section>
+
+    <!-- Real-Time Biometric Signals Panel -->
+    <section class="signals-panel">
+      <!-- Wellness Score Card -->
+      <div class="card wellness-card glass-card">
+        <div class="card-header-row">
+          <p class="card-label">Composite Wellness Score</p>
+          <span class="card-chip">Real-Time Index</span>
+        </div>
+        <div class="wellness-content">
+          <div class="wellness-score-wrap">
+            <span id="wellnessScore" class="glow-number">--</span>
+            <span class="score-max">/100</span>
+          </div>
+          <div class="wellness-details">
+            <span id="wellnessLabel" class="wellness-label pill pill-muted">Calibrating</span>
+            <p class="wellness-desc" id="wellnessDesc">Synthesizing heart rate, HRV stress, and eye fatigue…</p>
+          </div>
+        </div>
+        <div class="wellness-bar-bg">
+          <div id="wellnessBarFill" class="wellness-bar-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Heart Rate (rPPG) Card -->
+      <div class="card heart-card glass-card">
+        <div class="card-header-row">
+          <div class="card-label-with-icon">
+            <svg class="metric-icon heart-icon" id="beatingHeart" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <p class="card-label">Heart Rate (rPPG)</p>
+          </div>
+          <span class="sensor-badge">Optical Green Channel</span>
+        </div>
+        <div class="metric-row">
+          <span id="bpmValue" class="metric-value font-mono">--</span>
+          <span class="metric-unit">BPM</span>
+        </div>
+        <div class="sparkline-container">
+          <canvas id="bpmChart" height="70"></canvas>
+        </div>
+      </div>
+
+      <!-- Stress & HRV Card -->
+      <div class="card stress-card glass-card">
+        <div class="card-header-row">
+          <div class="card-label-with-icon">
+            <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12h3l3 8 4-16 3 8h5"/>
+            </svg>
+            <p class="card-label">Stress Level (HRV / SDNN)</p>
+          </div>
+          <span class="sensor-badge">Personal Calibration</span>
+        </div>
+        <div class="metric-row">
+          <span id="stressValue" class="metric-value font-mono">--</span>
+        </div>
+        <!-- Tri-state Stress Meter -->
+        <div class="stress-meter-wrap">
+          <div class="stress-meter-bar">
+            <div class="meter-seg meter-low" id="segLow">Low</div>
+            <div class="meter-seg meter-mod" id="segMod">Moderate</div>
+            <div class="meter-seg meter-elev" id="segElev">Elevated</div>
+          </div>
+        </div>
+        <p id="stressDetail" class="metric-sub font-mono">Waiting for baseline calibration…</p>
+      </div>
+
+      <!-- Eye Strain & Drowsiness Card -->
+      <div class="card eye-card glass-card">
+        <div class="card-header-row">
+          <div class="card-label-with-icon">
+            <svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <p class="card-label">Eye Strain &amp; Drowsiness</p>
+          </div>
+          <span class="sensor-badge">Geometric EAR</span>
+        </div>
+        <div class="eye-metric-container">
+          <div class="metric-row">
+            <span id="blinkValue" class="metric-value font-mono">--</span>
+            <span class="metric-unit">blinks / min</span>
+          </div>
+          <div class="eye-flags">
+            <span id="eyeStatusFlag" class="pill pill-muted">
+              <span class="pill-dot"></span>
+              <span id="eyeStatusText">Evaluating</span>
+            </span>
+          </div>
+        </div>
+        <div class="ear-indicator-row">
+          <span class="ear-sub-label">Normal Blink Range: <strong>10–20 / min</strong></span>
+          <span class="ear-sub-label">Drowsy Cutoff: <strong>&ge; 2.0s closure</strong></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Session Summary Section -->
+  <footer class="session-summary glass-card">
+    <div class="summary-header">
+      <h2>Session Telemetry Summary</h2>
+      <span class="summary-tag">Aggregated Rolling Statistics</span>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-tile">
+        <div class="tile-icon icon-emerald">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="tile-body">
+          <span class="summary-value font-mono" id="sumAvgBpm">--</span>
+          <span class="summary-label">Average BPM</span>
+        </div>
+      </div>
+
+      <div class="summary-tile">
+        <div class="tile-icon icon-cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="tile-body">
+          <span class="summary-value font-mono" id="sumStressTrend">--</span>
+          <span class="summary-label">Stress Trend</span>
+        </div>
+      </div>
+
+      <div class="summary-tile">
+        <div class="tile-icon icon-coral">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="tile-body">
+          <span class="summary-value font-mono" id="sumDrowsy">0</span>
+          <span class="summary-label">Drowsy Alerts</span>
+        </div>
+      </div>
+
+      <div class="summary-tile">
+        <div class="tile-icon icon-indigo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="tile-body">
+          <span class="summary-value font-mono" id="sumBlinkAvg">--</span>
+          <span class="summary-label">Avg Blink Rate (/min)</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
+
