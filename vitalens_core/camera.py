@@ -92,6 +92,8 @@ class VitaLensProcessor:
     def restart_calibration(self):
         with self.lock:
             self.calibrator.reset()
+            self.eye_tracker.reset()
+
 
     def get_state(self):
         with self.lock:

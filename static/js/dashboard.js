@@ -20,7 +20,9 @@ const els = {
   segMod: document.getElementById("segMod"),
   segElev: document.getElementById("segElev"),
   blinkValue: document.getElementById("blinkValue"),
+  totalBlinks: document.getElementById("totalBlinks"),
   eyeStatusFlag: document.getElementById("eyeStatusFlag"),
+
   eyeStatusText: document.getElementById("eyeStatusText"),
   sumAvgBpm: document.getElementById("sumAvgBpm"),
   sumStressTrend: document.getElementById("sumStressTrend"),
@@ -262,7 +264,11 @@ function render(state) {
   // 6. Eye Strain & Drowsiness
   const eye = state.eye || {};
   els.blinkValue.textContent = eye.blink_rate_per_min ?? "--";
+  if (els.totalBlinks) {
+    els.totalBlinks.textContent = eye.total_blinks ?? 0;
+  }
   if (eye.blink_rate_per_min != null) blinkSamples.push(eye.blink_rate_per_min);
+
 
   const isDrowsy = Boolean(eye.drowsy);
   const isStrain = Boolean(eye.eye_strain);
