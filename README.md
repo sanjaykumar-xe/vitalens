@@ -1,103 +1,119 @@
 # VitaLens — AI-Powered Contactless Wellness Monitoring
 
-Heart Rate (rPPG) · Stress/HRV (personal baseline calibration) · Eye Strain & Drowsiness (EAR) — all from a single webcam feed, built on two shared MediaPipe Face Mesh pipelines. Zero wearables, zero cost.
+> **Real-Time Biometric & Ergonomic Telemetry from a Single Webcam Stream — Zero Wearables, Zero Sensors, Zero Cost.**
 
-Built for **Prasunethon 2.0 Hackathon — Round 2**, following the architecture in `VitaLens_Full_Documentation.docx`.
+VitaLens leverages a shared **MediaPipe Face Mesh (468 landmarks)** pipeline to extract three simultaneous health signals from a standard RGB video stream in real time:
+1. **Heart Rate (rPPG)**: Remote Photoplethysmography extracting blood pulse micro-fluctuations from a dynamic forehead ROI polygon.
+2. **Stress & Heart Rate Variability (HRV / SDNN)**: High-resolution peak detection & inter-beat interval analysis calibrated against a **personalized 30-second resting baseline**.
+3. **Eye Strain & Drowsiness**: Geometric Eye Aspect Ratio (EAR) with adaptive open-eye baseline calibration, blink-rate tracking, and Web Audio API alerts.
+4. **Composite Wellness Score (0–100)**: Transparent, deterministic multi-signal synthesis.
 
-## How it maps to the documentation
+---
 
-| Doc section | Code |
-| --- | --- |
-| 11.1 Heart Rate (rPPG) | `vitalens_core/camera.py` (forehead ROI extraction) + `vitalens_core/signal_processing.py` (bandpass filter + FFT → BPM) |
-| 11.2 Stress/HRV + baseline calibration | `vitalens_core/signal_processing.py` (peak detection → SDNN) + `vitalens_core/calibration.py` (30s baseline window, % deviation) |
-| 11.3 Eye Strain / Drowsiness | `vitalens_core/eye_strain.py` (EAR formula, blink rate, drowsiness) |
-| Combined Wellness Score | `vitalens_core/wellness.py` |
-| Backend (Flask) | `app.py` |
-| Frontend / Dashboard (HTML/JS + Chart.js) | `templates/index.html`, `static/js/dashboard.js`, `static/css/style.css` |
+## 🌟 Key Features & Architecture
 
-One `FaceMesh.process()` call per frame in `camera.py` feeds all three signals — matching the "two shared pipelines" story from the pitch deck.
-
-## 1. Setup
-
-Requires **Python 3.9–3.11** (MediaPipe doesn't yet support 3.12+ on all platforms) and a working webcam.
-
-```bash
-cd vitalens
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-# macOS / Linux
-source venv/bin/activate
-
-pip install -r requirements.txt
+```
+                               ┌── Forehead Skin ROI ──> 30s Rolling Buffer ──> Butterworth Bandpass Filter (0.7-4.0 Hz) ──┬──> FFT Spectrum ──> Heart Rate (BPM)
+                               │                                                                                           └──> Peak Detection ──> Inter-Beat Intervals ──> SDNN (ms) ──> % Deviation from Baseline ──> Stress Level
+Webcam Stream ──> MediaPipe ───┤
+                  Face Mesh    │
+                               └── Eye Landmarks (EAR) ──> Adaptive Open-Eye Calibration ──> Dynamic Cutoff ──┬──> Sustained Closure (≥ 2.0s) ──> Drowsy Alert!
+                                                                                                              └──> Rolling Window Count ──> Extrapolated Blink Rate (/min) & Eye Strain
 ```
 
-## 2. Run
+### 1. Heart Rate (rPPG)
+- Extracts the mean green-channel intensity from a convex hull bounded by facial landmarks `[10, 109, 108, 151, 337, 338, 297, 332, 103]`.
+- Resamples non-uniform webcam timestamps onto a uniform 30 Hz time grid using linear interpolation.
+- Filters using a 3rd-order Butterworth bandpass filter ($0.7\text{ Hz}$ to $4.0\text{ Hz}$ / 42–240 BPM).
+- Extracts dominant frequency via Fast Fourier Transform (FFT) with a Hanning window.
 
-```bash
-python app.py
-```
+### 2. Stress & HRV (SDNN) with Personal Baseline Calibration
+- Detects systolic pulse peaks with dynamic prominence thresholds ($0.30 \times \sigma$) to reject dicrotic notches and camera noise.
+- Filters physiological inter-beat intervals (300ms–1500ms) with relative outlier rejection ($\pm 35\%$ from window median).
+- Computes SDNN over a 30-second rolling window matching the calibration window.
+- Evaluates stress based on percentage deviation ($\Delta\%$) from the user's own resting baseline:
+  - **Low Stress**: $\ge -15\%$ deviation
+  - **Moderate Stress**: $-15\%$ to $-35\%$ deviation
+  - **Elevated Stress**: $< -35\%$ deviation
 
-Open **http://localhost:5000** in a browser. Grant camera permission if prompted by your OS (not the browser — OpenCV opens the camera directly).
+### 3. Adaptive Eye Strain & Drowsiness Detection
+- Calculates Eye Aspect Ratio: $\text{EAR} = \frac{\|p_2 - p_6\| + \|p_3 - p_5\|}{2 \|p_1 - p_4\|}$.
+- Automatically learns the user's natural open-eye baseline ($\text{EAR}_{\text{open}}$) and sets an adaptive threshold ($72\%$ of open baseline), accommodating eyeglasses and different facial features.
+- Tracks session blinks with a 180ms refractory period and normalizes rate per minute.
+- Flags **Drowsy Alert** on sustained closure ($\ge 2.0\text{s}$) and **Eye Strain** on sustained low blink rate ($< 8\text{ blinks/min}$).
 
-- The calibration ring runs for ~30 seconds on load ("sit still and look at the camera") — this sets your personal baseline BPM/SDNN per Section 11.2.
-- After calibration, BPM, Stress (Low/Moderate/Elevated + % vs your baseline), and Eye Strain/Drowsiness all update live.
-- **Recalibrate** button restarts the baseline window (useful between demo volunteers).
-- Session Summary at the bottom rolls up avg BPM, stress trend, drowsy-alert count, and avg blink rate.
+### 4. Audio Alerts & Cybernetic Glassmorphism UI
+- Zero-asset Web Audio API 1000 Hz square-wave double-beep alert triggered on alert transitions.
+- Obsidian dark-mode dashboard with Google Fonts (`Outfit`, `Plus Jakarta Sans`, `JetBrains Mono`), animated heartbeat sync, tri-state stress meter, and live Chart.js sparkline.
 
-## 3. Project structure
+---
+
+## 📁 Project Structure
 
 ```
 vitalens/
-├── app.py                     # Flask routes: dashboard, /api/data, /video_feed
-├── requirements.txt
+├── app.py                     # Flask web server: / (UI), /api/data, /video_feed, /api/calibrate/restart
+├── requirements.txt           # Core dependencies (flask, opencv-python, mediapipe, numpy, scipy)
+├── .gitignore                 # Excludes venv, bytecode, and temporary files
 ├── vitalens_core/
-│   ├── camera.py               # threaded capture loop, shared Face Mesh, ROI extraction
-│   ├── signal_processing.py    # resample, bandpass filter, FFT→BPM, peak detect→SDNN
-│   ├── calibration.py          # 30s baseline window + % deviation stress scoring
-│   ├── eye_strain.py           # EAR calc, blink counting, drowsiness detection
-│   └── wellness.py             # combines all 3 signals into one 0-100 score
-├── templates/index.html
-└── static/{css,js}/
+│   ├── __init__.py
+│   ├── camera.py              # Threaded capture loop, MediaPipe Face Mesh, ROI extraction & state
+│   ├── signal_processing.py   # Resampling, Butterworth bandpass filter, FFT BPM, peak detection & SDNN
+│   ├── calibration.py         # 30s baseline calibrator & percentage deviation stress evaluation
+│   ├── eye_strain.py          # Adaptive EAR baseline, blink detection, and drowsiness monitor
+│   └── wellness.py            # Composite 0-100 wellness index scoring
+├── templates/
+│   └── index.html             # Semantic glassmorphism HUD dashboard template
+└── static/
+    ├── css/
+    │   └── style.css          # Futuristic obsidian styling, radial glows & responsive layout
+    └── js/
+        └── dashboard.js       # Client polling loop, Chart.js telemetry, audio alerts & timer
 ```
 
-## 4. Testing checklist (from Section 19 of the doc)
+---
 
-- [ ] Test in bright, dim, and backlit rooms — rPPG/HRV are the most lighting-sensitive parts.
-- [ ] Let the signal run 30-60s before judging HRV/stress accuracy.
-- [ ] Test calibration on 2-3 different people; confirm baseline BPM/SDNN look sane (baseline shown in the Stress card once calibration finishes).
-- [ ] Test EAR thresholds on someone wearing glasses — tune `EAR_THRESHOLD` in `eye_strain.py` if needed (default `0.22`).
-- [ ] Deliberately close eyes for 2-3s and blink rapidly to confirm both alerts fire.
-- [ ] Rehearse the "whose baseline are you comparing against" answer — it's the differentiator vs. Whoop/Oura/Binah.ai (Section 16).
+## ⚡ Installation & Quick Start
 
-## 5. Known tuning knobs
+### Prerequisites
+- **Python 3.9 – 3.11** (MediaPipe compatibility)
+- Standard USB or built-in webcam
 
-| Constant | File | Default | Purpose |
-| --- | --- | --- | --- |
-| `CALIBRATION_SECONDS` | `calibration.py` | 30 | Baseline window length |
-| `EAR_THRESHOLD` | `eye_strain.py` | 0.22 | Eye-closed cutoff — calibrate on your own eyes first |
-| `EAR_SMOOTHING_FRAMES` | `eye_strain.py` | 3 | Moving average window for raw EAR smoothing |
-| `CONSECUTIVE_CLOSED_FRAMES` | `eye_strain.py` | 2 | Consecutive frames below cutoff to confirm closure (debouncing) |
-| `REFRACTORY_SECONDS` | `eye_strain.py` | 0.20 | Minimum cooldown period between consecutive blinks |
-| `DROWSY_SECONDS` | `eye_strain.py` | 2.0 | Sustained closure before flagging drowsy |
-| `LOW_BLINK_RATE_PER_MIN` | `eye_strain.py` | 8 | Sustained low blink rate → eye strain flag |
-| `FOREHEAD_LANDMARKS` | `camera.py` | — | ROI landmark indices — switch to cheek landmarks if forehead is covered by hair/bangs during testing |
+### Setup
+```bash
+# Clone the repository
+git clone https://github.com/sanjaykumar-xe/vitalens.git
+cd vitalens
 
+# Create virtual environment
+python -m venv venv
 
-## 6. Submitting for Round 2
+# Activate virtual environment
+# Windows (Command Prompt / PowerShell):
+venv\Scripts\activate
+# macOS / Linux:
+source venv/bin/activate
 
-Your email asks for, on **both** the Google Form and the Prasunet Portal:
-- Working Project / Demo → run `python app.py` and screen-record the dashboard (calibration → live signals → recalibrate).
-- Source Code → zip this folder (already provided) or push to a GitHub repo and share the link.
-- Project Documentation → `VitaLens_Full_Documentation.docx` (already have it).
-- PPT / Presentation → `VitaLens_Prasunethon_Pitch.pptx` (already have it).
-- Demo Video → record a short walkthrough narrating the calibration step as intentional, per Section 15 Part 7.
+# Install dependencies
+pip install -r requirements.txt
+```
 
-## 7. Next steps in Antigravity
+### Run
+```bash
+python app.py
+```
+Open **[http://localhost:5000](http://localhost:5000)** in any modern web browser.
 
-This codebase is ready to drop straight into **Google Antigravity** (Gemini-3-powered agentic IDE) for further iteration:
+---
 
-1. Open Antigravity → **File → Open Folder** → select this `vitalens/` folder.
-2. Its built-in browser + terminal can run `python app.py` and visually test the dashboard for you, so it's a good fit for tasks like: tuning `EAR_THRESHOLD`/`LOW_BLINK_RATE_PER_MIN` against your own webcam, adding the optional UBFC-rPPG-trained model mentioned in Section 15 (Part 2, Step 7), or polishing the UI further for the demo.
-3. Since agents there can act autonomously, review each diff/plan before accepting — especially anything touching `signal_processing.py`, since a bad edit there silently degrades BPM/HRV accuracy rather than crashing.
+## ⚙️ Configuration & Tuning Knobs
+
+| Parameter | Location | Default | Description |
+|---|---|---|---|
+| `BUFFER_SECONDS` | `vitalens_core/camera.py` | `30` | Rolling sample buffer length (matches baseline window) |
+| `CALIBRATION_SECONDS` | `vitalens_core/calibration.py` | `30` | Baseline learning window duration |
+| `DROWSY_SECONDS` | `vitalens_core/eye_strain.py` | `2.0` | Sustained eye closure threshold to trigger Drowsy Alert |
+| `LOW_BLINK_RATE_PER_MIN` | `vitalens_core/eye_strain.py` | `8` | Blink rate cutoff for eye strain detection |
+| `REFRACTORY_SECONDS` | `vitalens_core/eye_strain.py` | `0.18` | Minimum cooldown between consecutive blinks |
+| `FOREHEAD_LANDMARKS` | `vitalens_core/camera.py` | — | 468-point landmark indices for forehead rPPG ROI |
+
